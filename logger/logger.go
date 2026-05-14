@@ -15,10 +15,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
-
-	charmlog "github.com/charmbracelet/log"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // New returns a *slog.Logger configured from environment variables.
@@ -34,62 +30,10 @@ func New() *slog.Logger {
 	if useJSON {
 		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 	} else {
-		handler = newConsoleHandler(level)
+		handler = newPrettyHandler(os.Stderr, level)
 	}
 
 	return slog.New(handler)
-}
-
-// newConsoleHandler returns a charmbracelet/log handler with custom styles.
-func newConsoleHandler(level slog.Level) slog.Handler {
-	h := charmlog.NewWithOptions(os.Stderr, charmlog.Options{
-		Level:           charmlog.Level(level),
-		ReportTimestamp: true,
-		TimeFormat:      time.TimeOnly,
-	})
-	h.SetStyles(consoleStyles())
-	return h
-}
-
-// consoleStyles returns a clean, readable style set for terminal output.
-func consoleStyles() *charmlog.Styles {
-	s := charmlog.DefaultStyles()
-
-	s.Timestamp = lipgloss.NewStyle().Faint(true)
-	s.Separator = lipgloss.NewStyle().Faint(true)
-	s.Key = lipgloss.NewStyle().Faint(true).Italic(true)
-	s.Value = lipgloss.NewStyle()
-	s.Message = lipgloss.NewStyle()
-
-	s.Levels = map[charmlog.Level]lipgloss.Style{
-		charmlog.DebugLevel: lipgloss.NewStyle().
-			SetString("DBG").
-			Bold(true).
-			Foreground(lipgloss.Color("63")), // slate blue
-		charmlog.InfoLevel: lipgloss.NewStyle().
-			SetString("INF").
-			Bold(true).
-			Foreground(lipgloss.Color("35")), // green
-		charmlog.WarnLevel: lipgloss.NewStyle().
-			SetString("WRN").
-			Bold(true).
-			Foreground(lipgloss.Color("214")), // amber
-		charmlog.ErrorLevel: lipgloss.NewStyle().
-			SetString("ERR").
-			Bold(true).
-			Foreground(lipgloss.Color("196")), // red
-		charmlog.FatalLevel: lipgloss.NewStyle().
-			SetString("FTL").
-			Bold(true).
-			Background(lipgloss.Color("196")).
-			Foreground(lipgloss.Color("15")), // white on red
-	}
-
-	// Highlight the "err" key in red so errors stand out.
-	s.Keys["err"] = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Italic(true)
-	s.Values["err"] = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-
-	return s
 }
 
 func parseLevel(s string) slog.Level {
