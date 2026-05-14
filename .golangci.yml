@@ -1,0 +1,38 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    # correctness
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    # style
+    - godot
+    - misspell
+    - unconvert
+    - whitespace
+    # security
+    - gosec
+    # maintainability
+    - gocognit
+    - cyclop
+    - dupl
+  settings:
+    gocognit:
+      min-complexity: 20
+    cyclop:
+      max-complexity: 15
+    dupl:
+      threshold: 150
+    gosec:
+      excludes:
+        - G115
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - gosec

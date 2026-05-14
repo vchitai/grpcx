@@ -1,0 +1,11 @@
+# English translations — error code → message template.
+# Data fields from XError.Metadata are available via {{.field_name}}.
+
+INTERNAL_SERVER_ERROR: "Something went wrong. Please try again later."
+MISSING_ACCESS_TOKEN: "Authentication required."
+INVALID_ACCESS_TOKEN: "Invalid or expired token."
+PERMISSION_DENIED: "You do not have permission to perform this action."
+RESOURCE_NOT_FOUND: "The requested resource was not found."
+ALREADY_EXISTS: "A resource with that identifier already exists."
+VALIDATION_ERROR: "The request contains invalid fields."
+UNAVAILABLE: "The service is temporarily unavailable. Please try again."
