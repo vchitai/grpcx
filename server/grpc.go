@@ -8,11 +8,15 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health"
 
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	logging "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+
+	"github.com/vchitai/grpcx/grpc/middleware"
 )
 
 var serverMetrics = grpcprom.NewServerMetrics(
@@ -39,6 +43,7 @@ type grpcConfig struct {
 	MaxConcurrentStreams      uint32
 	SensitiveFields          []string // fields to redact from payload logs
 	SkipLoggingMethods       []string // full method names to skip request/response logging
+	DefaultTimeout           time.Duration
 }
 
 var defaultServerLoggingTimestamp = time.RFC3339
@@ -53,11 +58,17 @@ func createDefaultGRPCConfig() *grpcConfig {
 		Addr:                Listen{Host: "0.0.0.0", Port: defaultServerPort},
 		MaxConcurrentStreams: maxConcurrentStreams,
 		SensitiveFields:     defaultSensitiveFields,
+		SkipLoggingMethods:  []string{"/grpc.health.v1.Health/Check"},
+		DefaultTimeout:      30 * time.Second,
+		ServerOption: []grpc.ServerOption{
+			grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		},
 	}
 }
 
 // buildDefaultUnaryInterceptors creates the framework's built-in unary interceptors
 // using the final config values. Called at server creation, after options are applied.
+// Order: timeout → metrics → logging → (app interceptors)
 func (c *grpcConfig) buildDefaultUnaryInterceptors() []grpc.UnaryServerInterceptor {
 	l := slog.Default()
 	skip := make(map[string]bool, len(c.SkipLoggingMethods))
@@ -71,6 +82,7 @@ func (c *grpcConfig) buildDefaultUnaryInterceptors() []grpc.UnaryServerIntercept
 		logging.WithLevels(DefaultServerCodeToLevel),
 	)
 	return []grpc.UnaryServerInterceptor{
+		middleware.TimeoutUnaryServerInterceptor(c.DefaultTimeout),
 		serverMetrics.UnaryServerInterceptor(),
 		func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 			if skip[info.FullMethod] {
@@ -108,8 +120,9 @@ func (c *grpcConfig) ServerOptions() []grpc.ServerOption {
 }
 
 type grpcServer struct {
-	server *grpc.Server
-	config *grpcConfig
+	server       *grpc.Server
+	config       *grpcConfig
+	healthServer *health.Server
 }
 
 func newGrpcServer(c *grpcConfig, servers []ServiceServer) *grpcServer {
@@ -117,7 +130,8 @@ func newGrpcServer(c *grpcConfig, servers []ServiceServer) *grpcServer {
 	for _, svr := range servers {
 		svr.RegisterWithServer(s)
 	}
-	return &grpcServer{server: s, config: c}
+	hs := registerHealthServer(s)
+	return &grpcServer{server: s, config: c, healthServer: hs}
 }
 
 func (s *grpcServer) Serve(ctx context.Context) error {

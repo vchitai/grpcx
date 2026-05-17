@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -189,8 +190,15 @@ func createDefaultGatewayConfig() *gatewayConfig {
 			}),
 			runtime.WithErrorHandler(ErrorHandler),
 		},
-		ServerHandlers:    []HTTPServerHandler{PrometheusHandler},
-		ServerMiddlewares: []HTTPServerMiddleware{loggingMiddleware},
+		ServerHandlers: []HTTPServerHandler{PrometheusHandler},
+		// otelhttp traces every inbound HTTP request through the gateway.
+		// loggingMiddleware is appended after so tracing is the outermost layer.
+		ServerMiddlewares: []HTTPServerMiddleware{
+			func(next http.Handler) http.Handler {
+				return otelhttp.NewHandler(next, "grpc-gateway")
+			},
+			loggingMiddleware,
+		},
 	}
 }
 

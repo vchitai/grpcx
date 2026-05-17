@@ -1,6 +1,8 @@
 package server
 
 import (
+	"time"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 )
@@ -129,4 +131,10 @@ func WithSkipLoggingMethods(methods ...string) Option {
 	return func(c *Config) {
 		c.Grpc.SkipLoggingMethods = append(c.Grpc.SkipLoggingMethods, methods...)
 	}
+}
+
+// WithDefaultTimeout overrides the server-side default RPC timeout applied when
+// the client has not set a deadline.  The default is 30 seconds.
+func WithDefaultTimeout(d time.Duration) Option {
+	return func(c *Config) { c.Grpc.DefaultTimeout = d }
 }
