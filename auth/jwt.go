@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -44,6 +45,12 @@ func (v *JWTValidator) Validate(tokenStr string) (*Claims, error) {
 
 // GenerateToken creates a signed JWT for the given user and role, expiring after ttl.
 func GenerateToken(userID string, role Role, secret string, ttl time.Duration) (string, error) {
+	if secret == "" {
+		return "", errors.New("auth: JWT secret must not be empty")
+	}
+	if userID == "" {
+		return "", errors.New("auth: userID must not be empty")
+	}
 	claims := &jwtClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),

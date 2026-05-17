@@ -244,3 +244,13 @@ func TestGenerateToken_expired(t *testing.T) {
 	_, err = v.Validate(tok)
 	require.Error(t, err)
 }
+
+func TestGenerateToken_emptySecret(t *testing.T) {
+	_, err := auth.GenerateToken("user-1", auth.RoleUser, "", time.Hour)
+	require.Error(t, err)
+}
+
+func TestGenerateToken_emptyUserID(t *testing.T) {
+	_, err := auth.GenerateToken("", auth.RoleUser, testSecret, time.Hour)
+	require.Error(t, err)
+}
