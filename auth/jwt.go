@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/vchitai/grpcx/errs"
@@ -38,4 +40,18 @@ func (v *JWTValidator) Validate(tokenStr string) (*Claims, error) {
 		return nil, errs.Unauthenticated("INVALID_TOKEN", "malformed token claims")
 	}
 	return &Claims{UserID: c.UserID, Role: c.Role}, nil
+}
+
+// GenerateToken creates a signed JWT for the given user and role, expiring after ttl.
+func GenerateToken(userID string, role Role, secret string, ttl time.Duration) (string, error) {
+	claims := &jwtClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		UserID: userID,
+		Role:   role,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
 }

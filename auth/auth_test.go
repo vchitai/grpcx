@@ -221,3 +221,26 @@ func TestNewAuthInterceptor_missingJWT(t *testing.T) {
 	code, _ := errs.Parse(err)
 	assert.Equal(t, "MISSING_ACCESS_TOKEN", code)
 }
+
+// --- GenerateToken ---
+
+func TestGenerateToken_roundtrip(t *testing.T) {
+	tok, err := auth.GenerateToken("user-42", auth.RoleAdmin, testSecret, time.Hour)
+	require.NoError(t, err)
+	require.NotEmpty(t, tok)
+
+	v := auth.NewJWTValidator(testSecret)
+	claims, err := v.Validate(tok)
+	require.NoError(t, err)
+	assert.Equal(t, "user-42", claims.UserID)
+	assert.Equal(t, auth.RoleAdmin, claims.Role)
+}
+
+func TestGenerateToken_expired(t *testing.T) {
+	tok, err := auth.GenerateToken("user-1", auth.RoleUser, testSecret, -time.Minute)
+	require.NoError(t, err)
+
+	v := auth.NewJWTValidator(testSecret)
+	_, err = v.Validate(tok)
+	require.Error(t, err)
+}
