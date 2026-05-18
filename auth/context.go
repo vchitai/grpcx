@@ -34,7 +34,7 @@ func WithVendorIdentity(ctx context.Context, v *VendorIdentity) context.Context 
 // VendorIdentityFromContext extracts the VendorIdentity from the context.
 func VendorIdentityFromContext(ctx context.Context) (*VendorIdentity, bool) {
 	v, ok := ctx.Value(vendorKey).(*VendorIdentity)
-	return v, ok
+	return v, ok && v != nil
 }
 
 // RequireAdmin returns PermissionDenied unless the caller has "operator" or "admin" in Roles.
@@ -43,7 +43,7 @@ func RequireAdmin(ctx context.Context) error {
 	if !ok {
 		return status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
-	if slices.Contains(c.Roles, "operator") || slices.Contains(c.Roles, "admin") {
+	if slices.Contains(c.Roles, string(RoleOperator)) || slices.Contains(c.Roles, string(RoleAdmin)) {
 		return nil
 	}
 	return status.Errorf(codes.PermissionDenied, "admin role required")
@@ -55,7 +55,7 @@ func RequireSuperAdmin(ctx context.Context) error {
 	if !ok {
 		return status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
-	if slices.Contains(c.Roles, "admin") {
+	if slices.Contains(c.Roles, string(RoleAdmin)) {
 		return nil
 	}
 	return status.Errorf(codes.PermissionDenied, "super_admin role required")

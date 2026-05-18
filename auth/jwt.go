@@ -54,17 +54,8 @@ func GenerateToken(claims *Claims, secret string, ttl time.Duration) (string, er
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString([]byte(secret))
 }
 
-// ParseToken validates a signed JWT and returns the embedded Claims.
+// ParseToken is a convenience wrapper around NewJWTValidator. For production use
+// prefer creating a JWTValidator once and calling Validate on each request.
 func ParseToken(tokenString, secret string) (*Claims, error) {
-	var c jwtClaims
-	_, err := jwt.ParseWithClaims(tokenString, &c, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return []byte(secret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &c.Claims, nil
+	return NewJWTValidator(secret).Validate(tokenString)
 }
