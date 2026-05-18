@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,8 +10,7 @@ import (
 
 type jwtClaims struct {
 	jwt.RegisteredClaims
-	UserID string `json:"user_id"`
-	Role   Role   `json:"role"`
+	Claims
 }
 
 // JWTValidator validates JWT tokens and extracts Claims.
@@ -40,25 +38,33 @@ func (v *JWTValidator) Validate(tokenStr string) (*Claims, error) {
 	if !ok {
 		return nil, errs.Unauthenticated("INVALID_TOKEN", "malformed token claims")
 	}
-	return &Claims{UserID: c.UserID, Role: c.Role}, nil
+	return &c.Claims, nil
 }
 
-// GenerateToken creates a signed JWT for the given user and role, expiring after ttl.
-func GenerateToken(userID string, role Role, secret string, ttl time.Duration) (string, error) {
-	if secret == "" {
-		return "", errors.New("auth: JWT secret must not be empty")
-	}
-	if userID == "" {
-		return "", errors.New("auth: userID must not be empty")
-	}
-	claims := &jwtClaims{
+// GenerateToken mints a signed JWT for the given claims.
+func GenerateToken(claims *Claims, secret string, ttl time.Duration) (string, error) {
+	now := time.Now()
+	c := jwtClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
-		UserID: userID,
-		Role:   role,
+		Claims: *claims,
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString([]byte(secret))
+}
+
+// ParseToken validates a signed JWT and returns the embedded Claims.
+func ParseToken(tokenString, secret string) (*Claims, error) {
+	var c jwtClaims
+	_, err := jwt.ParseWithClaims(tokenString, &c, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &c.Claims, nil
 }

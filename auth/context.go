@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"slices"
 
-	"github.com/vchitai/grpcx/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type contextKey int
@@ -21,7 +23,7 @@ func WithClaims(ctx context.Context, claims *Claims) context.Context {
 // ClaimsFromContext extracts JWT Claims from the context.
 func ClaimsFromContext(ctx context.Context) (*Claims, bool) {
 	c, ok := ctx.Value(claimsKey).(*Claims)
-	return c, ok
+	return c, ok && c != nil
 }
 
 // WithVendorIdentity attaches a VendorIdentity to the context.
@@ -35,26 +37,26 @@ func VendorIdentityFromContext(ctx context.Context) (*VendorIdentity, bool) {
 	return v, ok
 }
 
-// RequireAdmin returns PermissionDenied if the caller is not admin or super_admin.
+// RequireAdmin returns PermissionDenied unless the caller has "operator" or "admin" in Roles.
 func RequireAdmin(ctx context.Context) error {
-	claims, ok := ClaimsFromContext(ctx)
+	c, ok := ClaimsFromContext(ctx)
 	if !ok {
-		return errs.Unauthenticated("MISSING_CLAIMS", "missing auth claims")
+		return status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.Role != RoleAdmin && claims.Role != RoleSuperAdmin {
-		return errs.PermissionDenied("INSUFFICIENT_ROLE", "admin access required")
+	if slices.Contains(c.Roles, "operator") || slices.Contains(c.Roles, "admin") {
+		return nil
 	}
-	return nil
+	return status.Errorf(codes.PermissionDenied, "admin role required")
 }
 
-// RequireSuperAdmin returns PermissionDenied if the caller is not super_admin.
+// RequireSuperAdmin returns PermissionDenied unless the caller has "admin" in Roles.
 func RequireSuperAdmin(ctx context.Context) error {
-	claims, ok := ClaimsFromContext(ctx)
+	c, ok := ClaimsFromContext(ctx)
 	if !ok {
-		return errs.Unauthenticated("MISSING_CLAIMS", "missing auth claims")
+		return status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.Role != RoleSuperAdmin {
-		return errs.PermissionDenied("INSUFFICIENT_ROLE", "super admin access required")
+	if slices.Contains(c.Roles, "admin") {
+		return nil
 	}
-	return nil
+	return status.Errorf(codes.PermissionDenied, "super_admin role required")
 }

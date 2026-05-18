@@ -21,6 +21,6 @@
 // After successful authentication the verified identity is available in the
 // handler context:
 //
-//	claims, ok := auth.ClaimsFromContext(ctx)       // JWT: UserID, Role
+//	claims, ok := auth.ClaimsFromContext(ctx)         // JWT: IdentityID, Scope, Roles, Email
 //	vendor, ok := auth.VendorIdentityFromContext(ctx) // API key: VendorID, Name
 package auth

@@ -1,6 +1,7 @@
 package auth
 
-// Role represents a user's authorization level in JWT claims.
+// Role represents a user's authorization level — kept for backward-compatible
+// helpers such as toProtoRole in consumer apps.
 type Role string
 
 const (
@@ -12,8 +13,10 @@ const (
 
 // Claims are the JWT payload injected into context after successful authentication.
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   Role   `json:"role"`
+	IdentityID string   `json:"iid"`
+	Scope      string   `json:"scope"` // "consumer" | "admin" | "operator"
+	Roles      []string `json:"roles"`
+	Email      string   `json:"email"`
 }
 
 // VendorIdentity is injected into context after successful API key authentication.

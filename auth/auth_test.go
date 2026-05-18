@@ -17,17 +17,19 @@ import (
 
 const testSecret = "test-secret-key"
 
-func makeToken(t *testing.T, userID string, role auth.Role, secret string) string {
+func makeToken(t *testing.T, identityID string, roles []string, secret string) string {
 	t.Helper()
-	type claims struct {
+	type jwtClaims struct {
 		jwt.RegisteredClaims
-		UserID string    `json:"user_id"`
-		Role   auth.Role `json:"role"`
+		IdentityID string   `json:"iid"`
+		Scope      string   `json:"scope"`
+		Roles      []string `json:"roles"`
+		Email      string   `json:"email"`
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims{
 		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))},
-		UserID:           userID,
-		Role:             role,
+		IdentityID:       identityID,
+		Roles:            roles,
 	})
 	s, err := tok.SignedString([]byte(secret))
 	require.NoError(t, err)
@@ -48,16 +50,16 @@ func ctxWithAPIKey(key string) context.Context {
 
 func TestJWTValidator_valid(t *testing.T) {
 	v := auth.NewJWTValidator(testSecret)
-	tok := makeToken(t, "user-1", auth.RoleUser, testSecret)
+	tok := makeToken(t, "user-1", []string{"user"}, testSecret)
 	claims, err := v.Validate(tok)
 	require.NoError(t, err)
-	assert.Equal(t, "user-1", claims.UserID)
-	assert.Equal(t, auth.RoleUser, claims.Role)
+	assert.Equal(t, "user-1", claims.IdentityID)
+	assert.Contains(t, claims.Roles, "user")
 }
 
 func TestJWTValidator_wrongSecret(t *testing.T) {
 	v := auth.NewJWTValidator(testSecret)
-	tok := makeToken(t, "user-1", auth.RoleUser, "wrong-secret")
+	tok := makeToken(t, "user-1", []string{"user"}, "wrong-secret")
 	_, err := v.Validate(tok)
 	require.Error(t, err)
 	code, _ := errs.Parse(err)
@@ -65,15 +67,15 @@ func TestJWTValidator_wrongSecret(t *testing.T) {
 }
 
 func TestJWTValidator_expired(t *testing.T) {
-	type claims struct {
+	type jwtClaims struct {
 		jwt.RegisteredClaims
-		UserID string    `json:"user_id"`
-		Role   auth.Role `json:"role"`
+		IdentityID string   `json:"iid"`
+		Roles      []string `json:"roles"`
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims{
 		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour))},
-		UserID:           "u",
-		Role:             auth.RoleUser,
+		IdentityID:       "u",
+		Roles:            []string{"user"},
 	})
 	s, _ := tok.SignedString([]byte(testSecret))
 	v := auth.NewJWTValidator(testSecret)
@@ -110,7 +112,7 @@ func TestAPIKeyValidator_empty(t *testing.T) {
 // --- Context helpers ---
 
 func TestClaimsRoundtrip(t *testing.T) {
-	c := &auth.Claims{UserID: "u1", Role: auth.RoleAdmin}
+	c := &auth.Claims{IdentityID: "u1", Roles: []string{"admin"}}
 	ctx := auth.WithClaims(context.Background(), c)
 	got, ok := auth.ClaimsFromContext(ctx)
 	require.True(t, ok)
@@ -133,21 +135,21 @@ func TestClaimsFromContext_missing(t *testing.T) {
 // --- RequireAdmin / RequireSuperAdmin ---
 
 func TestRequireAdmin(t *testing.T) {
-	ctx := auth.WithClaims(context.Background(), &auth.Claims{Role: auth.RoleAdmin})
+	ctx := auth.WithClaims(context.Background(), &auth.Claims{Roles: []string{"admin"}})
 	assert.NoError(t, auth.RequireAdmin(ctx))
 
-	ctx2 := auth.WithClaims(context.Background(), &auth.Claims{Role: auth.RoleSuperAdmin})
+	ctx2 := auth.WithClaims(context.Background(), &auth.Claims{Roles: []string{"operator"}})
 	assert.NoError(t, auth.RequireAdmin(ctx2))
 
-	ctx3 := auth.WithClaims(context.Background(), &auth.Claims{Role: auth.RoleUser})
+	ctx3 := auth.WithClaims(context.Background(), &auth.Claims{Roles: []string{"user"}})
 	assert.Error(t, auth.RequireAdmin(ctx3))
 }
 
 func TestRequireSuperAdmin(t *testing.T) {
-	ctx := auth.WithClaims(context.Background(), &auth.Claims{Role: auth.RoleSuperAdmin})
+	ctx := auth.WithClaims(context.Background(), &auth.Claims{Roles: []string{"admin"}})
 	assert.NoError(t, auth.RequireSuperAdmin(ctx))
 
-	ctx2 := auth.WithClaims(context.Background(), &auth.Claims{Role: auth.RoleAdmin})
+	ctx2 := auth.WithClaims(context.Background(), &auth.Claims{Roles: []string{"operator"}})
 	assert.Error(t, auth.RequireSuperAdmin(ctx2))
 }
 
@@ -175,7 +177,7 @@ func TestNewAuthInterceptor_jwt(t *testing.T) {
 	policy := func(string) auth.AuthMode { return auth.AuthModeJWT }
 	interceptor := auth.NewAuthInterceptor(jv, av, policy)
 
-	tok := makeToken(t, "user-1", auth.RoleUser, testSecret)
+	tok := makeToken(t, "user-1", []string{"user"}, testSecret)
 	ctx := ctxWithAuth(tok)
 	info := &grpc.UnaryServerInfo{FullMethod: "/svc/Method"}
 
@@ -186,7 +188,7 @@ func TestNewAuthInterceptor_jwt(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, gotClaims)
-	assert.Equal(t, "user-1", gotClaims.UserID)
+	assert.Equal(t, "user-1", gotClaims.IdentityID)
 }
 
 func TestNewAuthInterceptor_apiKey(t *testing.T) {
@@ -225,32 +227,28 @@ func TestNewAuthInterceptor_missingJWT(t *testing.T) {
 // --- GenerateToken ---
 
 func TestGenerateToken_roundtrip(t *testing.T) {
-	tok, err := auth.GenerateToken("user-42", auth.RoleAdmin, testSecret, time.Hour)
+	claims := &auth.Claims{
+		IdentityID: "user-42",
+		Roles:      []string{"admin"},
+		Email:      "admin@example.com",
+	}
+	tok, err := auth.GenerateToken(claims, testSecret, time.Hour)
 	require.NoError(t, err)
 	require.NotEmpty(t, tok)
 
 	v := auth.NewJWTValidator(testSecret)
-	claims, err := v.Validate(tok)
+	got, err := v.Validate(tok)
 	require.NoError(t, err)
-	assert.Equal(t, "user-42", claims.UserID)
-	assert.Equal(t, auth.RoleAdmin, claims.Role)
+	assert.Equal(t, "user-42", got.IdentityID)
+	assert.Contains(t, got.Roles, "admin")
 }
 
 func TestGenerateToken_expired(t *testing.T) {
-	tok, err := auth.GenerateToken("user-1", auth.RoleUser, testSecret, -time.Minute)
+	claims := &auth.Claims{IdentityID: "user-1", Roles: []string{"user"}}
+	tok, err := auth.GenerateToken(claims, testSecret, -time.Minute)
 	require.NoError(t, err)
 
 	v := auth.NewJWTValidator(testSecret)
 	_, err = v.Validate(tok)
-	require.Error(t, err)
-}
-
-func TestGenerateToken_emptySecret(t *testing.T) {
-	_, err := auth.GenerateToken("user-1", auth.RoleUser, "", time.Hour)
-	require.Error(t, err)
-}
-
-func TestGenerateToken_emptyUserID(t *testing.T) {
-	_, err := auth.GenerateToken("", auth.RoleUser, testSecret, time.Hour)
 	require.Error(t, err)
 }

@@ -60,8 +60,8 @@ func NewUnaryServerInterceptor(keyFn KeyFunc, limiter Limiter) grpc.UnaryServerI
 // key.  If no valid claims are present it falls back to the gRPC peer address.
 func KeyByUserID() KeyFunc {
 	return func(ctx context.Context, _ *grpc.UnaryServerInfo) string {
-		if claims, ok := auth.ClaimsFromContext(ctx); ok && claims.UserID != "" {
-			return "user:" + claims.UserID
+		if claims, ok := auth.ClaimsFromContext(ctx); ok && claims.IdentityID != "" {
+			return "user:" + claims.IdentityID
 		}
 		return peerAddr(ctx)
 	}
