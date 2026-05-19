@@ -2,7 +2,7 @@
 
 A production-ready Go framework for building gRPC + REST services.
 
-grpcx bundles the boilerplate every gRPC service needs — server lifecycle, structured errors, i18n, request tracing, auth, logging — into a small, composable library. Clone [`go-grpc-starter`](https://github.com/vchitai/go-grpc-starter) to see a working service built on it.
+grpcx bundles the boilerplate every gRPC service needs — server lifecycle, structured errors, i18n, request tracing, auth, logging — into a small, composable library. Clone [`go-grpc-starter`](https://github.com/mycollectibles/mycollectibles-loan-backend) to see a working service built on it.
 
 ## Features
 

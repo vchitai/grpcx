@@ -30,7 +30,7 @@
 //	    "context"
 //
 //	    "github.com/vchitai/grpcx/worker"
-//	    "github.com/vchitai/go-grpc-starter/internal/tasks"
+//	    "github.com/mycollectibles/mycollectibles-loan-backend/internal/tasks"
 //	)
 //
 //	type UserService struct {
@@ -54,7 +54,7 @@
 //	    "context"
 //	    "log/slog"
 //
-//	    "github.com/vchitai/go-grpc-starter/internal/tasks"
+//	    "github.com/mycollectibles/mycollectibles-loan-backend/internal/tasks"
 //	)
 //
 //	func HandleSendEmail(ctx context.Context, p tasks.SendEmailPayload) error {
